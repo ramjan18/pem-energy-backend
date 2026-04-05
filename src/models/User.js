@@ -29,10 +29,10 @@ const userSchema = new mongoose.Schema(
       default: 'recorder',
       required: true,
     },
-    department: {
-      type: String,
-      default: 'General',
-    },
+    // department: {
+    //   type: String,
+    //   default: 'General',
+    // },
     isActive: {
       type: Boolean,
       default: true,
