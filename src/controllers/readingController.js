@@ -9,17 +9,18 @@ export const recordMeterReading = async (req, res, next) => {
       shift,
       KWH,
       KVAH,
-      KVARH,
+      KVARHlag,
+      KVARHlead,
       MD,
       PF,
       notes,
     } = req.body;
 
     // Validate required fields
-    if (!meterId || !readingDate || !shift || KWH === undefined || KVAH === undefined || KVARH === undefined || MD === undefined || PF === undefined) {
+    if (!meterId || !readingDate || !shift || KWH === undefined || KVAH === undefined || KVARHlag === undefined || KVARHlead === undefined || MD === undefined) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: meterId, readingDate, shift, KWH, KVAH, KVARH, MD, PF',
+        message: 'Missing required fields: meterId, readingDate, shift, KWH, KVAH, KVARHlag, KVARHlead, MD',
       });
     }
 
@@ -38,10 +39,17 @@ export const recordMeterReading = async (req, res, next) => {
       });
     }
 
-    if (typeof KVARH !== 'number') {
+    if (typeof KVARHlag !== 'number' || KVARHlag < 0) {
       return res.status(400).json({
         success: false,
-        message: 'KVARH must be a valid number',
+        message: 'KVARH Lag must be a valid non-negative number',
+      });
+    }
+
+    if (typeof KVARHlead !== 'number' || KVARHlead < 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'KVARH Lead must be a valid non-negative number',
       });
     }
 
@@ -52,7 +60,7 @@ export const recordMeterReading = async (req, res, next) => {
       });
     }
 
-    if (typeof PF !== 'number' || PF < 0 || PF > 1) {
+    if (PF !== undefined && PF !== null && (typeof PF !== 'number' || PF < 0 || PF > 1)) {
       return res.status(400).json({
         success: false,
         message: 'PF must be a number between 0 and 1',
@@ -84,15 +92,34 @@ export const recordMeterReading = async (req, res, next) => {
       });
     }
 
+    // Prevent duplicate readings for the same meter/shift within 18 hours
+    const lockWindow = new Date(Date.now() - 18 * 60 * 60 * 1000);
+    const existing = await MeterReading.findOne({
+      meter: meterId,
+      shift,
+      deletedAt: null,
+      createdAt: { $gte: lockWindow },
+    });
+
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        message: 'A reading already exists for this meter and shift. You can re-enter only after 18 hours or if the existing reading is deleted.',
+      });
+    }
+
+    const totalKVARH = KVARHlag + KVARHlead;
     const reading = new MeterReading({
       meter: meterId,
       readingDate,
       shift,
       KWH,
       KVAH,
-      KVARH,
+      KVARH: totalKVARH,
+      KVARHlag,
+      KVARHlead,
       MD,
-      PF,
+      PF: PF === undefined ? null : PF,
       recordedBy: req.user.id,
       notes,
     });
@@ -112,10 +139,11 @@ export const recordMeterReading = async (req, res, next) => {
 
 export const getMeterReadings = async (req, res, next) => {
   try {
-    const { meterId, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const { meterId, shift, startDate, endDate, page = 1, limit = 50 } = req.query;
 
     const filter = { deletedAt: null };
     if (meterId) filter.meter = meterId;
+    if (shift) filter.shift = shift;
 
     if (startDate || endDate) {
       filter.readingDate = {};
@@ -331,6 +359,20 @@ export const updateMeterReading = async (req, res, next) => {
       });
     }
 
+    if (updates.KVARHlag !== undefined && (typeof updates.KVARHlag !== 'number' || updates.KVARHlag < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'KVARH Lag must be a valid non-negative number',
+      });
+    }
+
+    if (updates.KVARHlead !== undefined && (typeof updates.KVARHlead !== 'number' || updates.KVARHlead < 0)) {
+      return res.status(400).json({
+        success: false,
+        message: 'KVARH Lead must be a valid non-negative number',
+      });
+    }
+
     if (updates.MD !== undefined && (typeof updates.MD !== 'number' || updates.MD < 0)) {
       return res.status(400).json({
         success: false,
@@ -338,7 +380,7 @@ export const updateMeterReading = async (req, res, next) => {
       });
     }
 
-    if (updates.PF !== undefined && (typeof updates.PF !== 'number' || updates.PF < 0 || updates.PF > 1)) {
+    if (updates.PF !== undefined && updates.PF !== null && (typeof updates.PF !== 'number' || updates.PF < 0 || updates.PF > 1)) {
       return res.status(400).json({
         success: false,
         message: 'PF must be a number between 0 and 1',
@@ -350,6 +392,12 @@ export const updateMeterReading = async (req, res, next) => {
         success: false,
         message: 'Shift must be 1, 2, or 3',
       });
+    }
+
+    if (updates.KVARHlag !== undefined || updates.KVARHlead !== undefined) {
+      const lag = updates.KVARHlag !== undefined ? updates.KVARHlag : 0;
+      const lead = updates.KVARHlead !== undefined ? updates.KVARHlead : 0;
+      updates.KVARH = lag + lead;
     }
 
     const reading = await MeterReading.findByIdAndUpdate(id, updates, {

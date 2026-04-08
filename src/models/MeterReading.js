@@ -28,8 +28,18 @@ const meterReadingSchema = new mongoose.Schema(
     },
     KVARH: {
       type: Number,
-      required: [true, 'KVARH reading is required'],
+      default: 0,
       min: [0, 'KVARH cannot be negative'],
+    },
+    KVARHlag: {
+      type: Number,
+      required: [true, 'KVARH Lag is required'],
+      min: [0, 'KVARH Lag cannot be negative'],
+    },
+    KVARHlead: {
+      type: Number,
+      required: [true, 'KVARH Lead is required'],
+      min: [0, 'KVARH Lead cannot be negative'],
     },
     MD: {
       type: Number,
@@ -38,7 +48,7 @@ const meterReadingSchema = new mongoose.Schema(
     },
     PF: {
       type: Number,
-      required: [true, 'Power Factor is required'],
+      default: null,
       min: [0, 'PF must be between 0 and 1'],
       max: [1, 'PF must be between 0 and 1'],
     },
