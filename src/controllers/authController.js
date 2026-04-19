@@ -180,6 +180,14 @@ export const updateUser = async (req, res, next) => {
       });
     }
 
+    // Prevent inactivating manager accounts
+    if (isActive === false && user.role === 'manager') {
+      return res.status(403).json({
+        success: false,
+        message: 'Manager accounts cannot be inactivated',
+      });
+    }
+
     if (email) user.email = email;
     if (department) user.department = department;
     if (isActive !== undefined) user.isActive = isActive;
