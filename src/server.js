@@ -8,7 +8,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import healthRoutes from './routes/healthRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import meterRoutes from './routes/meterRoutes.js';
-import readingRoutes from './routes/readingRoutes.js';
+import readingRoutes from './routes/readingRoutes.js'; 
 
 // Load environment variables
 dotenv.config();
