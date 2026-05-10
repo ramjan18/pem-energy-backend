@@ -17,12 +17,12 @@ export const recordMeterReading = async (req, res, next) => {
     } = req.body;
 
     // Validate required fields
-    if (!meterId || !readingDate || !shift || KWH === undefined || KVAH === undefined || KVARHlag === undefined || KVARHlead === undefined || MD === undefined) {
-      return res.status(400).json({
-        success: false,
-        message: 'Missing required fields: meterId, readingDate, shift, KWH, KVAH, KVARHlag, KVARHlead, MD',
-      });
-    }
+    // if (!meterId || !readingDate || !shift || KWH === undefined || KVAH === undefined || KVARHlag === undefined || KVARHlead === undefined || MD === undefined) {
+    //   return res.status(400).json({
+    //     success: false,
+    //     message: 'Missing required fields: meterId, readingDate, shift, KWH, KVAH, KVARHlag, KVARHlead, MD',
+    //   });
+    // }
 
     // Validate data types and ranges
     if (typeof KWH !== 'number' || KWH < 0) {
@@ -89,22 +89,6 @@ export const recordMeterReading = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Meter not found',
-      });
-    }
-
-    // Prevent duplicate readings for the same meter/shift within 18 hours
-    const lockWindow = new Date(Date.now() - 18 * 60 * 60 * 1000);
-    const existing = await MeterReading.findOne({
-      meter: meterId,
-      shift,
-      deletedAt: null,
-      createdAt: { $gte: lockWindow },
-    });
-
-    if (existing) {
-      return res.status(409).json({
-        success: false,
-        message: 'A reading already exists for this meter and shift. You can re-enter only after 18 hours or if the existing reading is deleted.',
       });
     }
 
@@ -392,6 +376,21 @@ export const updateMeterReading = async (req, res, next) => {
         success: false,
         message: 'Shift must be 1, 2, or 3',
       });
+    }
+
+    // Validate meter if provided
+    if (updates.meter !== undefined) {
+      if (!updates.meter.match(/^[0-9a-fA-F]{24}$/)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid meter ID',
+        });
+      }
+    }
+
+    // Allow renaming: meter -> meter (already using correct field name)
+    if (updates.meter !== undefined) {
+      updates.meter = updates.meter;
     }
 
     if (updates.KVARHlag !== undefined || updates.KVARHlead !== undefined) {
