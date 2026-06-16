@@ -1,5 +1,7 @@
 import MeterReading from '../models/MeterReading.js';
 import Meter from '../models/Meter.js';
+import { recalculateAllPF } from '../utils/recalculatePF.js';
+import { calculatePowerFactor } from '../utils/pfCalculation.js';
 
 export const recordMeterReading = async (req, res, next) => {
   try {
@@ -538,6 +540,117 @@ export const restoreMeterReading = async (req, res, next) => {
       success: true,
       message: 'Reading restored successfully',
       data: reading,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const calculatePFMetricsForPeriod = async (req, res, next) => {
+  try {
+    const { meterId, startDate, endDate } = req.query;
+
+    if (!meterId) {
+      return res.status(400).json({
+        success: false,
+        message: 'meterId is required',
+      });
+    }
+
+    const filter = { meter: meterId, deletedAt: null };
+
+    if (startDate || endDate) {
+      filter.readingDate = {};
+      if (startDate) filter.readingDate.$gte = new Date(startDate);
+      if (endDate) filter.readingDate.$lte = new Date(endDate);
+    }
+
+    const readings = await MeterReading.find(filter)
+      .populate('meter')
+      .sort({ readingDate: 1 });
+
+    if (readings.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No readings found for the specified period',
+      });
+    }
+
+    const meter = readings[0].meter;
+    const metrics = readings.map((reading, index) => {
+      let pf = reading.PF;
+      let pfCalculated = false;
+
+      if (!pf && index > 0) {
+        const previousReading = readings[index - 1];
+        pf = calculatePowerFactor(
+          {
+            KWH: reading.KWH,
+            KVAH: reading.KVAH,
+            KVARHlag: reading.KVARHlag,
+            KVARHlead: reading.KVARHlead,
+          },
+          {
+            KWH: previousReading.KWH,
+            KVAH: previousReading.KVAH,
+            KVARHlag: previousReading.KVARHlag,
+            KVARHlead: previousReading.KVARHlead,
+          }
+        );
+        pfCalculated = true;
+      }
+
+      return {
+        date: reading.readingDate,
+        shift: reading.shift,
+        kwh: reading.KWH,
+        kvah: reading.KVAH,
+        kvarh: reading.KVARH,
+        kvarhLag: reading.KVARHlag,
+        kvarhLead: reading.KVARHlead,
+        md: reading.MD,
+        pf: pf,
+        pfCalculated: pfCalculated,
+      };
+    });
+
+    const validPFReadings = metrics.filter((m) => m.pf !== null && m.pf !== undefined);
+    const avgPF =
+      validPFReadings.length > 0
+        ? Math.round(
+            (validPFReadings.reduce((sum, m) => sum + m.pf, 0) / validPFReadings.length) * 10000
+          ) / 10000
+        : null;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        meter: {
+          name: meter.meterName,
+          number: meter.meterNumber,
+        },
+        period: {
+          start: startDate || 'N/A',
+          end: endDate || 'N/A',
+        },
+        readingsCount: readings.length,
+        averagePF: avgPF,
+        metrics: metrics,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const recalculatePFForAllReadings = async (req, res, next) => {
+  try {
+    const result = await recalculateAllPF();
+
+    res.status(200).json({
+      success: true,
+      message: 'Power Factor recalculation completed',
+      data: result,
     });
   } catch (error) {
     next(error);

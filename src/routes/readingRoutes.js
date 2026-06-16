@@ -4,6 +4,8 @@ import {
   getMeterReadings,
   calculateDailyConsumption,
   calculateActualMD,
+  calculatePFMetricsForPeriod,
+  recalculatePFForAllReadings,
   getMeterReadingById,
   updateMeterReading,
   deleteMeterReading,
@@ -19,8 +21,10 @@ router.use(protect);
 
 // Specific routes (must come before parameterized routes)
 router.get('/deleted-readings', authorize('manager'), getDeletedMeterReadings);
+router.post('/admin/recalculate-pf', authorize('manager'), recalculatePFForAllReadings);
 router.get('/daily-consumption', calculateDailyConsumption);
 router.get('/actual-md', calculateActualMD);
+router.get('/pf-metrics/period', calculatePFMetricsForPeriod);
 
 // General routes
 router.post('/', authorize('recorder', 'manager'), recordMeterReading);
