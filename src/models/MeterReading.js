@@ -46,6 +46,10 @@ const meterReadingSchema = new mongoose.Schema(
       required: [true, 'MD reading is required'],
       min: [0, 'MD cannot be negative'],
     },
+    multiplier: {
+      type: Number,
+      min: [0, 'Multiplier cannot be negative'],
+    },
     PF: {
       type: Number,
       default: null,

@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import User from '../models/User.js';
 
 export const protect = (req, res, next) => {
   try {
@@ -40,4 +41,13 @@ export const authorize = (...roles) => {
 
     next();
   };
+};
+
+export const requirePermission = (permission) => async (req, res, next) => {
+  if (req.user?.role === 'admin') return next();
+  try {
+    const user = await User.findById(req.user?.id).select('permissions');
+    if (user?.permissions?.includes('*') || user?.permissions?.includes(permission)) return next();
+    return res.status(403).json({ success: false, message: `Permission required: ${permission}` });
+  } catch (error) { return next(error); }
 };

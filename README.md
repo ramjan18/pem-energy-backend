@@ -6,6 +6,7 @@ Node.js/Express backend for the PEM Energy Monitoring System (EMS). This API han
 
 - **User Authentication**: JWT-based authentication with role-based access (Recorder & Manager)
 - **Meter Management**: Create, read, update, and delete meter configurations
+- **MF Audit History**: Store each multiplier change with its previous value, new value, manager, reason, and timestamp
 - **Reading Recording**: Record meter readings (KWH, KVAH, KVARH, MD, PF)
 - **Data Analysis**: Calculate daily consumption and actual maximum demand
 - **MongoDB Integration**: Persistent data storage with Mongoose ODM
@@ -95,6 +96,7 @@ The server will start on `http://localhost:5000`
 - `GET /api/meters` - Get all meters
 - `GET /api/meters/:id` - Get meter by ID
 - `PUT /api/meters/:id` - Update meter (manager only)
+- `GET /api/meters/:id/history` - View multiplier change history (manager only)
 - `DELETE /api/meters/:id` - Delete meter (manager only)
 
 ### Readings
@@ -198,10 +200,20 @@ curl -X POST http://localhost:5000/api/readings \
 - isActive
 - timestamps
 
+The `multiplier` field stores the current MF. Updating it through `PUT /api/meters/:id` also writes an audit record to the `meterhistories` collection. A changed MF is applied to readings recorded after the change; existing reading records keep their saved multiplier.
+
+### MeterHistory Collection
+- meter (ref to Meter)
+- oldMultiplier
+- newMultiplier
+- changedById / changedByName
+- comment (change reason)
+- timestamps
+
 ### MeterReading Collection
 - meter (ref to Meter)
 - readingDate
-- KWH, KVAH, KVARH, MD, PF
+- KWH, KVAH, KVARH, MD, PF, multiplier snapshot
 - recordedBy (ref to User)
 - notes
 - timestamps

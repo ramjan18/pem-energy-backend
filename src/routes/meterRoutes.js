@@ -3,6 +3,7 @@ import {
   createMeter,
   getAllMeters,
   getMeterById,
+  getMeterHistory,
   updateMeter,
   deleteMeter,
 } from '../controllers/meterController.js';
@@ -13,10 +14,11 @@ const router = express.Router();
 // All meter routes require authentication
 router.use(protect);
 
-router.post('/', authorize('manager'), createMeter);
+router.post('/', authorize('admin'), createMeter);
 router.get('/', getAllMeters);
+router.get('/:id/history', authorize('admin'), getMeterHistory);
 router.get('/:id', getMeterById);
-router.put('/:id', authorize('manager'), updateMeter);
-router.delete('/:id', authorize('manager'), deleteMeter);
+router.put('/:id', authorize('admin'), updateMeter);
+router.delete('/:id', authorize('admin'), deleteMeter);
 
 export default router;

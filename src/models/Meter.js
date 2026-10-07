@@ -31,7 +31,9 @@ const meterSchema = new mongoose.Schema(
     },
     multiplier: {
       type: Number,
-      default: 1,
+      default: function () {
+        return { SAPL: 70, SMRT: 10, 'SMC-HT': 4 }[this.meterName] || 1;
+      },
       required: true,
     },
     contractedMD: {

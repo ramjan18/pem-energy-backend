@@ -37,6 +37,10 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    permissions: {
+      type: [String],
+      default: [],
+    },
     lastLogin: Date,
   },
   { timestamps: true }
