@@ -25,6 +25,7 @@ router.post('/admin/recalculate-pf', authorize('manager', 'admin'), recalculateP
 router.get('/daily-consumption', calculateDailyConsumption);
 router.get('/actual-md', calculateActualMD);
 router.get('/pf-metrics/period', calculatePFMetricsForPeriod);
+router.get('/pf-metrics/period', calculatePFMetricsForPeriod);
 
 // General routes
 router.post('/', authorize('recorder', 'manager', 'admin'), (req, res, next) => req.user.role === 'manager' ? requirePermission('fillPending')(req, res, next) : next(), recordMeterReading);
